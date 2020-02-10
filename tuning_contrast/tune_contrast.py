@@ -8,8 +8,8 @@ import os
 
 # Read image given by user
 parser = argparse.ArgumentParser(description='Code for Changing the contrast and brightness of an image! ')
-parser.add_argument('--input', help='Path to input image.', default='./zjg_ground_image/')
-parser.add_argument('--output', help='Path to input image.', default='./contrast_image/')
+parser.add_argument('--input', help='Path to input image.', default='./test/')
+parser.add_argument('--output', help='Path to input image.', default='./contrast_convertBW_image/')
 args = parser.parse_args()
 
 inputdir = args.input
@@ -54,12 +54,17 @@ for filename in glob.glob(inputdir+"*.jpg"):
 	# 		else:
 	# 			pixel = pixel + 0.5*(255-pixel)
 
-	imghsv[:,:,2] = [[max(0.3*pixel, 0) if pixel < 60 else min(pixel+0.6*(255-pixel), 255) for pixel in row] for row in imghsv[:,:,2]]
+# for the ground pictures
+	imghsv[:,:,2] = [[max(0.6*pixel, 0) if pixel < 60 else min(pixel+0.8*(255-pixel), 255) if pixel<155 else 0 for pixel in row] for row in imghsv[:,:,2]]
+	
+# # for the orthomosaic
+# 	imghsv[:,:,2] = [[max(0.3*pixel, 0) if pixel < 100 else min(pixel+0.6*(255-pixel), 255)  for pixel in row] for row in imghsv[:,:,2]]
+	
+
 	imgBGR = cv.cvtColor(imghsv, cv.COLOR_HSV2BGR)
-	imgGRAY = cv.cvtColor(imgBGR, cv.COLOR_BGR2GRAY)
 	picturename = os.path.basename(filename)
 	print("picturename", picturename )
-	cv.imwrite(outputdir+picturename, imgGRAY, [cv.IMWRITE_JPEG_QUALITY, 100])
+	cv.imwrite(outputdir+picturename, imgBGR, [cv.IMWRITE_JPEG_QUALITY, 100])
 	print("Picture:", filename, "done")
 	# cv.imshow('contrast', imgGRAY)
 	# cv.waitKey(1000)
