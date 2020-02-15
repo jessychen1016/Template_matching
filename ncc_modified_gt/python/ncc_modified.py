@@ -6,11 +6,12 @@ import os
 import utility_ncc
 import math
 from numba import cuda
+import time
 
 parser = argparse.ArgumentParser(description='Code for Changing the contrast and brightness of an image! ')
 parser.add_argument('--input', help='Path to input image.', default='../ground_pics/')
 parser.add_argument('--output', help='Path to input image.', default='../ncc_output/')
-parser.add_argument('--cuda', help='whether to use CUDA.', default=False)
+parser.add_argument('--cuda', help='whether to use CUDA.', default=True)
 args = parser.parse_args()
 
 inputdir = args.input
@@ -54,13 +55,15 @@ for filename in glob.glob(inputdir+"183_contrast.jpg"):
 	number = 0
 	totalcomputation = 0
 	valmaxlist=np.zeros([1,maxrotation], dtype=float)
-	coordinatelists=np.zeros([2,maxrotation], dtype=float)
+	coordinatelists=np.zeros([2,maxrotation], dtype=int)
 
 	# params for CUDA
 	val_cuda=float(0)
 	sum_img = float(0)
 	sum_temp = float(0)
 	sum_2 = float(0)
+	x_cuda = int(0)
+	y_cuda = int(0)
 
 	# calculate the number of total pixels
 	for rotationtest in range(maxrotation):
@@ -83,7 +86,7 @@ for filename in glob.glob(inputdir+"183_contrast.jpg"):
 		
 		# set initial device parameters for CUDA
 		if(use_cuda):
-			threadsperblock = (16, 16)
+			threadsperblock = (32, 32)
 			blockspergrid_x = int(math.ceil(temp_g.shape[0] / threadsperblock[0]))
 			blockspergrid_y = int(math.ceil(temp_g.shape[1] / threadsperblock[1]))
 			blockspergrid = (blockspergrid_x, blockspergrid_y)
@@ -94,25 +97,37 @@ for filename in glob.glob(inputdir+"183_contrast.jpg"):
 			sum_2_global_mem = cuda.to_device(sum_2)
 			#pass the temp array to cuda memory
 			temp_cuda_global_mem = cuda.to_device(temp_g)
+			img_cuda_global_mem = cuda.to_device(img_g)
+			x_cuda_global_mem = cuda.to_device(x_cuda)
+			y_cuda_global_mem = cuda.to_device(y_cuda)
 		for y in range(regionYmin-1, regionYmax-temp_H):
 			for x in range(regionXmin-1, regionXmax-temp_W):
 				if(use_cuda):
-					# pass the image array to the kernel
-					img_cuda = img_g[y:y+temp_H,x:x+temp_W]
-					img_cuda_contiguous=np.ascontiguousarray(img_cuda, dtype=np.int16)
-					img_cuda_global_mem = cuda.to_device(img_cuda_contiguous)
+					start_time=time.time()
+					## pass the image array to the kernel
+
+					# img_cuda = img_g[y:y+temp_H,x:x+temp_W]
+					# img_cuda_contiguous=np.ascontiguousarray(img_cuda, dtype=np.int16)
+					# img_cuda_global_mem = cuda.to_device(img_cuda_contiguous)
 					
 					sum_img_global_mem[0], sum_temp_global_mem[0], sum_2_global_mem[0] = 0,0,0 
+					x_cuda_global_mem[0], y_cuda_global_mem[0] = x,y
 					# to call the kernal
+					middle_time=time.time()
 					utility_ncc.cudaNCC[blockspergrid,threadsperblock](img_cuda_global_mem,temp_cuda_global_mem,\
-																		sum_img_global_mem,\
-																		sum_temp_global_mem,sum_2_global_mem)
-					print("sum_2", sum_2_global_mem)
-					print("sum_temp_global_mem", sum_temp_global_mem)
-					print("sum_img_global_mem", sum_img_global_mem)
+																		x_cuda_global_mem ,y_cuda_global_mem, sum_img_global_mem,\
+																		sum_temp_global_mem, sum_2_global_mem)
+					# print("sum_2", sum_2_global_mem)
+					# print("sum_temp_global_mem", sum_temp_global_mem)
+					# print("sum_img_global_mem", sum_img_global_mem)
 					val = sum_2_global_mem[0]/np.sqrt(float(sum_img_global_mem[0])*float(sum_temp_global_mem[0]))
-					print("cuda_val", val)
+					# print("cuda_val", val)
 					# val = val_cuda
+					end_time=time.time()
+
+					print("passing time= ", middle_time- start_time)
+					print("progressing time= ", end_time- middle_time)
+					print("total time= ", end_time- start_time)
 				else:
 					val = utility_ncc.NCC(img_g,temp_g,x,y)
 				number = number + 1

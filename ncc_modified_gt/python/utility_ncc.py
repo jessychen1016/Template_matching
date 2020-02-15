@@ -3,19 +3,31 @@ import cv2 as cv
 from numba import cuda
 
 
+
 # use cuda to calculate the ncc value
 @cuda.jit
-def cudaNCC(img,temp,sum_img,sum_temp,sum_2):
+def cudaNCC(img_original,temp,x,y,sum_img,sum_temp,sum_2):
 	[H,W] = temp.shape
+	# print("sum2= ",sum_2[0])
 	i,j = cuda.grid(2)
-	
-	if (i < temp.shape[0] and j < temp.shape[1]):
-		if(temp[i,j] != 255 & img[i,j] !=0):
-				sum_img[0] = sum_img[0] + float(img[i,j])**2
-				sum_temp[0] = sum_temp[0] + float(temp[i,j])**2
-				sum_2[0] = sum_2[0] + (2-abs((W/2)-i)/(W/2)*abs((H/2)-j)/(H/2))*float(img[i,j])*float(temp[i,j])
-				# print("img[",i,",",j,"]=",img[i,j])
-				# sum_2[0] = sum_2[0] + float(img[i,j])*float(temp[i,j])
+	# print("img[",i,",",j,"]=",x[0], y[0])
+
+	if (j < temp.shape[0] and i < temp.shape[1]):
+		if(temp[j,i] != 255 & img_original[j+y[0],i+x[0]] !=0):
+				
+
+				## use cuda.atomic computation to avoid conflict between threads
+				cuda.atomic.add(sum_img,0,float(img_original[j+y[0],i+x[0]])**2)
+				cuda.atomic.add(sum_temp,0,float(temp[j,i])**2)
+				cuda.atomic.add(sum_2,0,float(2-abs((W/2)-i)/(W/2)*abs((H/2)-j)/(H/2))*float(img_original[j+y[0],i+x[0]])*float(temp[j,i]))
+				
+				## add without sync
+				# sum_img[0] = sum_img[0] + float(img_original[j+y[0],i+x[0]])**2
+				# sum_temp[0] = sum_temp[0] + float(temp[j,i])**2
+				# sum_2[0] = sum_2[0] + float(2-abs((W/2)-i)/(W/2)*abs((H/2)-j)/(H/2))*float(img_original[j+y[0],i+x[0]])*float(temp[j,i])
+
+				# sum_2[0] = sum_2[0] + float(img_original[j+y[0],i+x[0]])*float(temp[j,i])
+				# print("the 556,443 f img= ", img[556,443])
 				# print("sum2= ",sum_2[0])
 
 
