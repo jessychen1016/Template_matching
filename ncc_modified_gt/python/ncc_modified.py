@@ -11,12 +11,13 @@ import time
 parser = argparse.ArgumentParser(description='Code for Changing the contrast and brightness of an image! ')
 parser.add_argument('--input', help='Path to input image.', default='../ground_pics/')
 parser.add_argument('--output', help='Path to input image.', default='../ncc_output/')
-parser.add_argument('--cuda', help='whether to use CUDA.', default=True)
+parser.add_argument('--cuda', help='whether to use CUDA.', default=0)
 args = parser.parse_args()
 
 inputdir = args.input
 outputdir = args.output
-use_cuda = args.cuda
+use_cuda = bool(args.cuda)
+print("Do We Use CUDA?", use_cuda)
 
 # start of the main loop
 
@@ -43,9 +44,9 @@ for filename in glob.glob(inputdir+"183_contrast.jpg"):
 	# start of the ncc process by initializing some of the veriables
 
 	regionXmin=13
-	regionXmax=686
+	regionXmax=700
 	regionYmin=13
-	regionYmax=686
+	regionYmax=700
 
 	maxrotation=1
 	angle_resolution = 1
@@ -100,15 +101,12 @@ for filename in glob.glob(inputdir+"183_contrast.jpg"):
 			img_cuda_global_mem = cuda.to_device(img_g)
 			x_cuda_global_mem = cuda.to_device(x_cuda)
 			y_cuda_global_mem = cuda.to_device(y_cuda)
+
+		loop_start_time = time.time()
 		for y in range(regionYmin-1, regionYmax-temp_H):
 			for x in range(regionXmin-1, regionXmax-temp_W):
 				if(use_cuda):
-					start_time=time.time()
-					## pass the image array to the kernel
-
-					# img_cuda = img_g[y:y+temp_H,x:x+temp_W]
-					# img_cuda_contiguous=np.ascontiguousarray(img_cuda, dtype=np.int16)
-					# img_cuda_global_mem = cuda.to_device(img_cuda_contiguous)
+					# start_time=time.time()
 					
 					sum_img_global_mem[0], sum_temp_global_mem[0], sum_2_global_mem[0] = 0,0,0 
 					x_cuda_global_mem[0], y_cuda_global_mem[0] = x,y
@@ -117,37 +115,37 @@ for filename in glob.glob(inputdir+"183_contrast.jpg"):
 					utility_ncc.cudaNCC[blockspergrid,threadsperblock](img_cuda_global_mem,temp_cuda_global_mem,\
 																		x_cuda_global_mem ,y_cuda_global_mem, sum_img_global_mem,\
 																		sum_temp_global_mem, sum_2_global_mem)
-					# print("sum_2", sum_2_global_mem)
-					# print("sum_temp_global_mem", sum_temp_global_mem)
-					# print("sum_img_global_mem", sum_img_global_mem)
 					val = sum_2_global_mem[0]/np.sqrt(float(sum_img_global_mem[0])*float(sum_temp_global_mem[0]))
 					# print("cuda_val", val)
 					# val = val_cuda
-					end_time=time.time()
+					# end_time=time.time()
 
-					print("passing time= ", middle_time- start_time)
-					print("progressing time= ", end_time- middle_time)
-					print("total time= ", end_time- start_time)
+					# print("passing time= ", middle_time- start_time)
+					# print("progressing time= ", end_time- middle_time)
+					# print("total time= ", end_time- start_time)
 				else:
 					val = utility_ncc.NCC(img_g,temp_g,x,y)
 				number = number + 1
 				progess = 100*number/totalcomputation
-				dis[y-regionYmin+1,x-regionXmin+1]=val
+				# dis[y-regionYmin+1,x-regionXmin+1]=val
 				print("Progress=", progess)
 				if val > val_max:
 					val_max = val
 					xp = x
 					yp = y
 					angle=rotation
-	
+		
+
+		loop_finish_time = time.time()
 		valmaxlist[0,rotation] = val_max
 		print("xp= ", xp)
 		print("yp= ", yp)
 		coordinatelists[0,rotation]=xp
 		coordinatelists[1,rotation]=yp
+		print("The total Time Consumption is ", loop_finish_time-loop_start_time)
 
 	print("coordinate_list ", coordinatelists)
-	print("distance", dis)
+	# print("distance", dis)
 
 	picturename = os.path.basename(filename)
 	# print("picturename", picturename )
