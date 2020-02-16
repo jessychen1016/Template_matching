@@ -44,9 +44,9 @@ for filename in glob.glob(inputdir+"183_contrast.jpg"):
 	# start of the ncc process by initializing some of the veriables
 
 	regionXmin=13
-	regionXmax=700
+	regionXmax=750
 	regionYmin=13
-	regionYmax=700
+	regionYmax=750
 
 	maxrotation=1
 	angle_resolution = 1
@@ -84,56 +84,89 @@ for filename in glob.glob(inputdir+"183_contrast.jpg"):
 		[temp_H,temp_W] = temp_g.shape
 		
 		dis = np.ones([regionYmax-temp_H-regionYmin+1,regionXmax-temp_W-regionXmin+1], dtype=float)
+		searching_boundary=np.array([regionYmin-1, regionYmax-temp_H, regionXmin-1, regionXmax-temp_W])
+		sum_img = np.ones([regionYmax-temp_H-regionYmin+1,regionXmax-temp_W-regionXmin+1], dtype=float)
+		sum_temp = np.ones([regionYmax-temp_H-regionYmin+1,regionXmax-temp_W-regionXmin+1], dtype=float)
+		sum_2 = np.ones([regionYmax-temp_H-regionYmin+1,regionXmax-temp_W-regionXmin+1], dtype=float)
 		
 		# set initial device parameters for CUDA
 		if(use_cuda):
-			threadsperblock = (32, 32)
-			blockspergrid_x = int(math.ceil(temp_g.shape[0] / threadsperblock[0]))
-			blockspergrid_y = int(math.ceil(temp_g.shape[1] / threadsperblock[1]))
-			blockspergrid = (blockspergrid_x, blockspergrid_y)
+			#padd the cuda param of the searching_boundary thread
+			threadsperblock_searching = (16,16)
+			blockspergrid_x_searching = int(math.ceil((searching_boundary[1]-searching_boundary[0]) / threadsperblock_searching[0]))
+			blockspergrid_y_searching = int(math.ceil((searching_boundary[3]-searching_boundary[2]) / threadsperblock_searching[1]))
+			blockspergrid_searching = (blockspergrid_x_searching,blockspergrid_y_searching)
+			#pass the cuda param of the NCC thread
+			threadsperblock_ncc = (32,32)
+			blockspergrid_x_ncc = int(math.ceil(temp_g.shape[0] / threadsperblock_ncc[0]))
+			blockspergrid_y_ncc = int(math.ceil(temp_g.shape[1] / threadsperblock_ncc[1]))
+			blockspergrid_ncc = (blockspergrid_x_ncc,blockspergrid_y_ncc)
 			# pass some scalar values to the kernal
 			val_cuda_global_mem = cuda.to_device(val_cuda)
 			sum_img_global_mem = cuda.to_device(sum_img)
 			sum_temp_global_mem = cuda.to_device(sum_temp)
 			sum_2_global_mem = cuda.to_device(sum_2)
+			searching_boundary_global_mem = cuda.to_device(searching_boundary)
 			#pass the temp array to cuda memory
 			temp_cuda_global_mem = cuda.to_device(temp_g)
 			img_cuda_global_mem = cuda.to_device(img_g)
 			x_cuda_global_mem = cuda.to_device(x_cuda)
 			y_cuda_global_mem = cuda.to_device(y_cuda)
+			dis_global_mem = cuda.to_device(dis)
+			blockspergrid_ncc_global_mem = cuda.to_device(blockspergrid_ncc)
+			threadsperblock_ncc_global_mem = cuda.to_device(threadsperblock_ncc)
 
-		loop_start_time = time.time()
-		for y in range(regionYmin-1, regionYmax-temp_H):
-			for x in range(regionXmin-1, regionXmax-temp_W):
-				if(use_cuda):
-					# start_time=time.time()
+			## access the loop
+			utility_ncc.cuda_searchingNCC[blockspergrid_searching,threadsperblock_searching]\
+											(img_cuda_global_mem, temp_cuda_global_mem, \
+											sum_img_global_mem, sum_temp_global_mem, sum_2_global_mem,\
+											dis_global_mem, searching_boundary_global_mem,\
+											blockspergrid_ncc_global_mem, threadsperblock_ncc_global_mem)
+
+			
+			distance = dis_global_mem.copy_to_host()
+			max_distance = np.where(distance == np.amax(distance))
+			print("result is", max_distance)
+
+
+
+
+
+
+
+		# loop_start_time = time.time()
+		# for y in range(regionYmin-1, regionYmax-temp_H):
+		# 	for x in range(regionXmin-1, regionXmax-temp_W):
+		# 		if(use_cuda):
+		# 			# start_time=time.time()
 					
-					sum_img_global_mem[0], sum_temp_global_mem[0], sum_2_global_mem[0] = 0,0,0 
-					x_cuda_global_mem[0], y_cuda_global_mem[0] = x,y
-					# to call the kernal
-					middle_time=time.time()
-					utility_ncc.cudaNCC[blockspergrid,threadsperblock](img_cuda_global_mem,temp_cuda_global_mem,\
-																		x_cuda_global_mem ,y_cuda_global_mem, sum_img_global_mem,\
-																		sum_temp_global_mem, sum_2_global_mem)
-					val = sum_2_global_mem[0]/np.sqrt(float(sum_img_global_mem[0])*float(sum_temp_global_mem[0]))
-					# print("cuda_val", val)
-					# val = val_cuda
-					# end_time=time.time()
+		# 			sum_img_global_mem[0], sum_temp_global_mem[0], sum_2_global_mem[0] = 0,0,0 
+		# 			x_cuda_global_mem[0], y_cuda_global_mem[0] = x,y
+		# 			# to call the kernal
+		# 			middle_time=time.time()
+		# 			utility_ncc.cudaNCC[blockspergrid_ncc,threadsperblock_ncc]\
+		# 									(img_cuda_global_mem,temp_cuda_global_mem,\
+		# 									x_cuda_global_mem ,y_cuda_global_mem, sum_img_global_mem,\
+		# 									sum_temp_global_mem, sum_2_global_mem)
+		# 			val = sum_2_global_mem[0]/np.sqrt(float(sum_img_global_mem[0])*float(sum_temp_global_mem[0]))
+		# 			# print("cuda_val", val)
+		# 			# val = val_cuda
+		# 			# end_time=time.time()
 
-					# print("passing time= ", middle_time- start_time)
-					# print("progressing time= ", end_time- middle_time)
-					# print("total time= ", end_time- start_time)
-				else:
-					val = utility_ncc.NCC(img_g,temp_g,x,y)
-				number = number + 1
-				progess = 100*number/totalcomputation
-				# dis[y-regionYmin+1,x-regionXmin+1]=val
-				print("Progress=", progess)
-				if val > val_max:
-					val_max = val
-					xp = x
-					yp = y
-					angle=rotation
+		# 			# print("passing time= ", middle_time- start_time)
+		# 			# print("progressing time= ", end_time- middle_time)
+		# 			# print("total time= ", end_time- start_time)
+		# 		else:
+		# 			val = utility_ncc.NCC(img_g,temp_g,x,y)
+		# 		number = number + 1
+		# 		progess = 100*number/totalcomputation
+		# 		# dis[y-regionYmin+1,x-regionXmin+1]=val
+		# 		print("Progress=", progess)
+		# 		if val > val_max:
+		# 			val_max = val
+		# 			xp = x
+		# 			yp = y
+		# 			angle=rotation
 		
 
 		loop_finish_time = time.time()
