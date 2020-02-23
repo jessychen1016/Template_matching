@@ -15,18 +15,18 @@ args = parser.parse_args()
 inputdir = args.input
 outputdir = args.output
 
-for filename in glob.glob(inputdir+"277.jpg"):
+for filename in glob.glob(inputdir+"269.jpg"):
 
 	image = cv.imread(filename)
 	
 	for y in range(image.shape[0]):
 	    for x in range(image.shape[1]):
-	    	# if(image[y,x][0] == 255):
-	    	# 	image[y,x][0],image[y,x][1],image[y,x][2] = 0,0,0
-	    	if(image[y,x][0]>=60):
-	    		image[y,x][0] = min(255, image[y,x][0]+60)
-	    		image[y,x][1]=min(255,image[y,x][0]+3)
-	    		image[y,x][2]=0
+	    	if(image[y,x][1] >= 253 or image[y,x][2] >= 253 or image[y,x][0]>=255 ):
+	    		image[y,x][0],image[y,x][1],image[y,x][2] = 0,0,0
+	    	# if(image[y,x][0]>=60):
+	    	# 	image[y,x][0] = min(255, image[y,x][0]+60)
+	    	# 	image[y,x][1]=min(255,image[y,x][0]+3)
+	    	# 	image[y,x][2]=0
 
 
 
