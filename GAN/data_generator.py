@@ -91,7 +91,7 @@ def pepper_noise(image,prob):
 multi_image = True
 add_mask = True
 change_contrast = True
-mask_type = "Pepper"
+mask_type = "Gaussion"
 
 if(multi_image):
 
